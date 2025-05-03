@@ -33,17 +33,24 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
       
-      - name: Build crypto-forecast
+      - name: Build crypto-forecast (debug mode)
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release
+          # Removed --release to build in debug mode
       
-      - name: Run crypto-forecast
+      - name: Run crypto-forecast with logging
+        run: |
+          # Using debug build and capturing both stdout and stderr
+          ./target/debug/crypto-forecast > analysis.txt 2> debug_logs.txt
+          # Append debug logs at the end of the analysis for reference
+          echo -e "\n\n## Debug Logs\n\`\`\`" >> analysis.txt
+          cat debug_logs.txt >> analysis.txt
+          echo "\`\`\`" >> analysis.txt
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          ./target/release/crypto-forecast > analysis.txt
+          RUST_LOG: debug  # Set log level to debug
+          RUST_BACKTRACE: 1  # Enable backtrace for better error reporting
           
       - name: Format date for issue title
         id: date
@@ -62,7 +69,7 @@ jobs:
               repo: context.repo.repo,
               title: `Bitcoin Trading Analysis - ${date}`,
               body: analysisText,
-              labels: ['analysis', 'automated']
+              labels: ['analysis', 'automated', 'debug-mode']
             });
         env:
           DATE: ${{ steps.date.outputs.date }}
