@@ -39,6 +39,16 @@ jobs:
           command: build
           args: --release
       
+      - name: Debug API Connectivity
+        run: |
+          echo "Testing Binance API connectivity..."
+          curl -v https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT
+          
+          echo "Testing Fear and Greed Index API connectivity..."
+          curl -v https://api.alternative.me/fng/?limit=1
+          
+          echo "API connectivity tests completed"
+      
       - name: Run crypto-forecast
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
