@@ -37,9 +37,8 @@ struct FearGreedMetadata {
     error: Option<String>,
 }
 
-
 /// Fetch Bitcoin price data from Binance API
-async fn fetch_bitcoin_data(days: u32) -> Result<CryptoData, Box<dyn Error>> {
+async fn fetch_bitcoin_data(data_provider_api_key: &String, api_base_url: &String, days: u32) -> Result<CryptoData, Box<dyn Error>> {
     // Calculate the start time (current time - days in milliseconds)
     let end_time = chrono::Utc::now().timestamp_millis() as u64;
     let start_time = end_time - (days as u64 * 24 * 60 * 60 * 1000);
@@ -50,12 +49,19 @@ async fn fetch_bitcoin_data(days: u32) -> Result<CryptoData, Box<dyn Error>> {
     
     // Binance API endpoint - BTCUSDT 4h candles with explicit limit
     let url = format!(
-        "https://api2.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&startTime={}&endTime={}&limit=1000",
-        start_time, end_time
+        "{}/api/v3/klines?symbol=BTCUSDT&interval=4h&startTime={}&endTime={}&limit=1000",
+        api_base_url, start_time, end_time
     );
     
     let client = reqwest::Client::new();
-    let response = client.get(&url).send().await?;
+    let mut request = client.get(&url);
+    
+    // Only add the API key header if it's provided and not empty
+    if !data_provider_api_key.is_empty() {
+        request = request.header("x-api-key", data_provider_api_key);
+    }
+    
+    let response = request.send().await?;
     
     if response.status().is_success() {
         let klines: Vec<Vec<Value>> = response.json().await?;
@@ -78,11 +84,14 @@ async fn fetch_bitcoin_data(days: u32) -> Result<CryptoData, Box<dyn Error>> {
                     let mut request_count = 1;
                     while new_start_time < end_time {
                         let pagination_url = format!(
-                            "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&startTime={}&endTime={}&limit=1000",
-                            new_start_time, end_time
+                            "{}/api/v3/klines?symbol=BTCUSDT&interval=4h&startTime={}&endTime={}&limit=1000",
+                            api_base_url, new_start_time, end_time
                         );
                         
-                        let pagination_response = client.get(&pagination_url).send().await?;
+                        let pagination_response = client.get(&pagination_url)
+                            .header("x-api-key", data_provider_api_key)
+                            .send()
+                            .await?;
                         
                         if pagination_response.status().is_success() {
                             let additional_klines: Vec<Vec<Value>> = pagination_response.json().await?;
@@ -226,7 +235,7 @@ pub async fn fetch_fear_greed_index_data() -> Result<Vec<FearGreedData>, Box<dyn
     }
 }
 /// Fetch Bitcoin price data for a 4-month period with 4-hour candles
-pub async fn fetch_bitcoin_trading_data() -> Result<CryptoData, Box<dyn Error>> {
+pub async fn fetch_bitcoin_trading_data(data_provider_api_key: &String, api_base_url: &String) -> Result<CryptoData, Box<dyn Error>> {
     // 4 months = 120 days
-    fetch_bitcoin_data(120).await
+    fetch_bitcoin_data(data_provider_api_key, api_base_url, 120).await
 }

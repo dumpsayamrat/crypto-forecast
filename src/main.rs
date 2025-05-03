@@ -21,13 +21,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
         env::var("ANTHROPIC_API_KEY")
             .expect("ANTHROPIC_API_KEY must be set in the .env file")
     } else {
-        String::new() // Dummy value since we won't be using it
+        String::new()
     };
+
+    let data_provider_api_key = env::var("DATA_PROVIDER_API_KEY")
+        .unwrap_or_else(|_| String::new());
     
-    println!("Fetching Bitcoin price data from Binance...");
+    let api_base_url = env::var("API_BASE_URL")
+        .unwrap_or_else(|_| "https://api.binance.com".to_string());
+    
+    println!("Fetching Bitcoin price data from API...");
     
     // Get Bitcoin price data for trading analysis (4-hour candles over 4 months)
-    let btc_data = data_fetcher::fetch_bitcoin_trading_data().await?;
+    let btc_data = data_fetcher::fetch_bitcoin_trading_data(&data_provider_api_key, &api_base_url).await?;
     let fear_and_greed_data = data_fetcher::fetch_fear_greed_index_data().await?;
 
     println!("Analyzing Bitcoin price data with RSI(14), MACD(12,26,9), and other indicators...");
