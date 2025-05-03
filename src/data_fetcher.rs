@@ -50,7 +50,7 @@ async fn fetch_bitcoin_data(days: u32) -> Result<CryptoData, Box<dyn Error>> {
     
     // Binance API endpoint - BTCUSDT 4h candles with explicit limit
     let url = format!(
-        "https://api4.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&startTime={}&endTime={}&limit=1000",
+        "https://api-gcp.binance.com/api/v3/klines?symbol=BTCUSDT&interval=4h&startTime={}&endTime={}&limit=1000",
         start_time, end_time
     );
     
