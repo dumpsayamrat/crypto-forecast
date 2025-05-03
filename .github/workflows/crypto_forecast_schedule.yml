@@ -6,6 +6,11 @@ on:
     - cron: '0 23,5,11,17 * * *'
   workflow_dispatch:  # Allow manual triggering
 
+# Add permissions needed to create issues
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   run-crypto-forecast:
     runs-on: ubuntu-latest
