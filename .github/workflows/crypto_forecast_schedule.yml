@@ -9,6 +9,7 @@ on:
 jobs:
   run-crypto-forecast:
     runs-on: ubuntu-latest
+    environment: Main
     
     steps:
       - name: Checkout code
