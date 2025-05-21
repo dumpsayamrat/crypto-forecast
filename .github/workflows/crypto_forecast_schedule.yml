@@ -50,11 +50,11 @@ jobs:
           API_BASE_URL: ${{ vars.API_BASE_URL }}
         run: |
           ./target/release/crypto-forecast > analysis.txt
-          
-      - name: Format date for message
+            - name: Format date for message
         id: date
         run: echo "date=$(date +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_OUTPUT
-            - name: Send Analysis to Telegram
+      
+      - name: Send Analysis to Telegram
         run: |
           # Read the analysis file
           ANALYSIS=$(cat analysis.txt)
