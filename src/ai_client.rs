@@ -70,13 +70,13 @@ pub async fn get_analysis_from_claude(api_key: &str, prompt: &str) -> Result<Str
     
     if response.status().is_success() {
         let response_data: AnthropicResponse = response.json().await?;
-        
-        // Extract the prediction text
+          // Extract the prediction text
         if let Some(content) = response_data.content.first() {
+            // Extract the market analysis from the response if it contains <bitcoin_market_analysis> tags
+            let market_analysis = extract_bitcoin_market_analysis(&content.text);
+            
             // Extract the last 3 data points from the prompt
             let last_3_data_points = extract_last_3_data_points(prompt);
-            let ta_summary = extract_ta_summary(prompt);
-            let fear_greed_data = extract_fear_greed(prompt);
             
             // Combine the Claude response with the data points
             let mut final_response = String::new();
@@ -86,19 +86,9 @@ pub async fn get_analysis_from_claude(api_key: &str, prompt: &str) -> Result<Str
             final_response.push_str(&last_3_data_points);
             final_response.push_str("\n\n");
             
-            // Add the technical analysis summary
-            final_response.push_str("=== TECHNICAL ANALYSIS SUMMARY ===\n");
-            final_response.push_str(&ta_summary);
-            final_response.push_str("\n\n");
-            
-            // Add the fear and greed data
-            final_response.push_str("=== FEAR AND GREED INDEX ===\n");
-            final_response.push_str(&fear_greed_data);
-            final_response.push_str("\n\n");
-            
-            // Add the Claude response
-            final_response.push_str("=== CLAUDE ANALYSIS ===\n");
-            final_response.push_str(&content.text);
+            // Add the Claude response (either the structured analysis or the full response)
+            final_response.push_str("=== BITCOIN MARKET ANALYSIS ===\n");
+            final_response.push_str(&market_analysis);
             
             Ok(final_response)
         } else {
@@ -113,22 +103,17 @@ pub async fn get_analysis_from_claude(api_key: &str, prompt: &str) -> Result<Str
 fn extract_last_3_data_points(prompt: &str) -> String {
     let mut last_3_lines = String::new();
     
-    // Find the OHLC data section
-    if let Some(ohlc_start) = prompt.find("Bitcoin historical OHLC + Volume data") {
-        // Find where the data starts (usually after "Date,Open,High,Low,Close,Volume")
-        if let Some(data_start) = prompt[ohlc_start..].find("\n") {
-            let data_section = &prompt[(ohlc_start + data_start + 1)..];
+    // Check for the new format with <historical_data> tags
+    if let Some(hist_start) = prompt.find("<historical_data>") {
+        let data_start = hist_start + "<historical_data>".len();
+        
+        if let Some(hist_end) = prompt[data_start..].find("</historical_data>") {
+            let historical_data = &prompt[data_start..(data_start + hist_end)].trim();
             
-            // Find where the data ends (usually before "=== TECHNICAL INDICATORS ===")
-            let data_end = if let Some(end_idx) = data_section.find("===") {
-                end_idx
-            } else {
-                data_section.len()
-            };
-            
-            let data_lines: Vec<&str> = data_section[..data_end]
-                .trim()
+            // Parse the historical data section to find OHLCV data
+            let data_lines: Vec<&str> = historical_data
                 .lines()
+                .filter(|line| line.contains("O=$") || line.contains("Price=$") || line.contains(": C=$"))
                 .collect();
             
             // Get the last 3 lines if available
@@ -143,9 +128,40 @@ fn extract_last_3_data_points(prompt: &str) -> String {
                 last_3_lines.push_str("\n");
             }
         }
-    } else {
-        // Fallback if OHLC data not found - look for basic price data
-        if let Some(price_start) = prompt.find("Bitcoin price data (timestamp, price in USD)") {
+    } 
+    
+    // Fallback to the old format if the new format is not found
+    if last_3_lines.is_empty() {
+        if let Some(ohlc_start) = prompt.find("Bitcoin historical OHLC + Volume data") {
+            // Find where the data starts (usually after "Date,Open,High,Low,Close,Volume")
+            if let Some(data_start) = prompt[ohlc_start..].find("\n") {
+                let data_section = &prompt[(ohlc_start + data_start + 1)..];
+                
+                // Find where the data ends (usually before "=== TECHNICAL INDICATORS ===")
+                let data_end = if let Some(end_idx) = data_section.find("===") {
+                    end_idx
+                } else {
+                    data_section.len()
+                };
+                
+                let data_lines: Vec<&str> = data_section[..data_end]
+                    .trim()
+                    .lines()
+                    .collect();
+                
+                // Get the last 3 lines if available
+                let start_idx = if data_lines.len() >= 3 {
+                    data_lines.len() - 3
+                } else {
+                    0
+                };
+                
+                for i in start_idx..data_lines.len() {
+                    last_3_lines.push_str(data_lines[i]);
+                    last_3_lines.push_str("\n");
+                }
+            }
+        } else if let Some(price_start) = prompt.find("Bitcoin price data (timestamp, price in USD)") {
             if let Some(data_start) = prompt[price_start..].find("\n") {
                 let data_section = &prompt[(price_start + data_start + 1)..];
                 
@@ -183,117 +199,18 @@ fn extract_last_3_data_points(prompt: &str) -> String {
     }
 }
 
-/// Extract the technical analysis summary from the prompt
-fn extract_ta_summary(prompt: &str) -> String {
-    let mut ta_summary = String::new();
-    
-    // Extract key indicators
-    let indicators = [
-        "Simple Moving Averages:", 
-        "Exponential Moving Averages:", 
-        "RSI", 
-        "MACD", 
-        "Bollinger Bands", 
-        "On Balance Volume", 
-        "Average True Range"
-    ];
-    
-    if let Some(ta_start) = prompt.find("=== TECHNICAL INDICATORS ===") {
-        let ta_section = &prompt[ta_start..];
+/// Extract the Bitcoin market analysis from the AI's response
+fn extract_bitcoin_market_analysis(response: &str) -> String {
+    // Look for content within <bitcoin_market_analysis> tags
+    if let Some(start_idx) = response.find("<bitcoin_market_analysis>") {
+        let content_start = start_idx + "<bitcoin_market_analysis>".len();
         
-        for indicator in &indicators {
-            if let Some(ind_start) = ta_section.find(indicator) {
-                let ind_section = &ta_section[ind_start..];
-                let ind_end = if let Some(end_idx) = ind_section[1..].find("\n\n") {
-                    end_idx + 1
-                } else {
-                    ind_section.len().min(200) // Limit length if no clear end
-                };
-                
-                // Extract just the first few lines of each indicator section
-                let ind_text = &ind_section[..ind_end];
-                let ind_lines: Vec<&str> = ind_text.lines().take(3).collect();
-                
-                for line in ind_lines {
-                    ta_summary.push_str(line);
-                    ta_summary.push_str("\n");
-                }
-                
-                ta_summary.push_str("\n");
-            }
-        }
-        
-        // Add support and resistance levels
-        if let Some(support_start) = ta_section.find("Support level:") {
-            let support_text = &ta_section[support_start..];
-            let support_end = if let Some(end_idx) = support_text.find("\n") {
-                end_idx
-            } else {
-                support_text.len()
-            };
-            
-            ta_summary.push_str(&support_text[..support_end]);
-            ta_summary.push_str("\n");
-        }
-        
-        if let Some(resistance_start) = ta_section.find("Resistance level:") {
-            let resistance_text = &ta_section[resistance_start..];
-            let resistance_end = if let Some(end_idx) = resistance_text.find("\n") {
-                end_idx
-            } else {
-                resistance_text.len()
-            };
-            
-            ta_summary.push_str(&resistance_text[..resistance_end]);
-            ta_summary.push_str("\n");
+        if let Some(end_idx) = response[content_start..].find("</bitcoin_market_analysis>") {
+            // Return just the content within the tags
+            return response[content_start..(content_start + end_idx)].trim().to_string();
         }
     }
     
-    if ta_summary.is_empty() {
-        "No technical analysis found in the prompt.".to_string()
-    } else {
-        ta_summary
-    }
-}
-
-/// Extract the fear and greed index data from the prompt
-fn extract_fear_greed(prompt: &str) -> String {
-    let mut fear_greed_data = String::new();
-    
-    // Look for the Fear and Greed section header (both formats)
-    let section_headers = ["=== FEAR & GREED INDEX ===", "=== FEAR AND GREED INDEX ==="];
-    
-    for &header in &section_headers {
-        if let Some(fg_start) = prompt.find(header) {
-            // Skip the header line
-            if let Some(line_end) = prompt[fg_start..].find('\n') {
-                let content_start = fg_start + line_end + 1;
-                
-                // Take next 5 lines after the header
-                let lines: Vec<&str> = prompt[content_start..]
-                    .lines()
-                    .take(5)
-                    .collect();
-                
-                for line in lines {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() && !trimmed.starts_with("===") {
-                        fear_greed_data.push_str(trimmed);
-                        fear_greed_data.push_str("\n");
-                    }
-                }
-                
-                // If we found data, break out of the loop
-                if !fear_greed_data.is_empty() {
-                    break;
-                }
-            }
-        }
-    }
-    
-    if fear_greed_data.is_empty() {
-        "No Fear and Greed data found in the prompt.".to_string()
-    } else {
-        fear_greed_data
-    }
+    // If no tags found or format is incorrect, return the full response
+    response.to_string()
 }

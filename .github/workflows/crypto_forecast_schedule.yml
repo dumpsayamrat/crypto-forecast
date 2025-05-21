@@ -2,14 +2,13 @@ name: Bitcoin Trading Analysis
 
 on:
   schedule:
-    # Run at 6:00 AM, 12:00 PM and 6:00 PM Bangkok time (UTC+7)
-    - cron: '0 23,5,11 * * *'
+    # Run at 6:00 AM and 6:00 PM Bangkok time (UTC+7)
+    - cron: '0 23,11 * * *'
   workflow_dispatch:  # Allow manual triggering
 
-# Add permissions needed to create issues
+# Only need read permissions for contents as we're no longer creating issues
 permissions:
   contents: read
-  issues: write
 
 jobs:
   run-crypto-forecast:
@@ -52,24 +51,28 @@ jobs:
         run: |
           ./target/release/crypto-forecast > analysis.txt
           
-      - name: Format date for issue title
+      - name: Format date for message
         id: date
         run: echo "date=$(date +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_OUTPUT
+            - name: Send Analysis to Telegram
+        run: |
+          # Read the analysis file
+          ANALYSIS=$(cat analysis.txt)
           
-      - name: Create GitHub Issue with Analysis
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const analysisText = fs.readFileSync('analysis.txt', 'utf8');
-            const date = process.env.DATE;
-            
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Bitcoin Trading Analysis - ${date}`,
-              body: analysisText,
-              labels: ['analysis', 'automated']
-            });
+          # Format the message with a header
+          DATE="${{ steps.date.outputs.date }}"
+          MESSAGE="📊 *Bitcoin Trading Analysis - ${DATE}*
+          
+          ${ANALYSIS}"
+          
+          # Encode the message for URL
+          ENCODED_MESSAGE=$(echo -n "${MESSAGE}" | jq -sRr @uri)
+          
+          # Send to Telegram
+          curl -s -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_API_KEY }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "text=${ENCODED_MESSAGE}" \
+            -d "parse_mode=Markdown"
         env:
           DATE: ${{ steps.date.outputs.date }}

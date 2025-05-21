@@ -237,5 +237,5 @@ pub async fn fetch_fear_greed_index_data() -> Result<Vec<FearGreedData>, Box<dyn
 /// Fetch Bitcoin price data for a 4-month period with 4-hour candles
 pub async fn fetch_bitcoin_trading_data(data_provider_api_key: &String, api_base_url: &String) -> Result<CryptoData, Box<dyn Error>> {
     // 4 months = 120 days
-    fetch_bitcoin_data(data_provider_api_key, api_base_url, 120).await
+    fetch_bitcoin_data(data_provider_api_key, api_base_url, 180).await
 }
