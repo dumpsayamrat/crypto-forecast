@@ -24,8 +24,7 @@ jobs:
         with:
           toolchain: stable
           override: true
-      
-      - name: Cache dependencies
+        - name: Cache dependencies
         uses: actions/cache@v3
         with:
           path: |
@@ -48,32 +47,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DATA_PROVIDER_API_KEY: ${{ secrets.DATA_PROVIDER_API_KEY }}
           API_BASE_URL: ${{ vars.API_BASE_URL }}
+          TELEGRAM_API_KEY: ${{ secrets.TELEGRAM_API_KEY }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          ./target/release/crypto-forecast > analysis.txt
-      
-      - name: Format date for message
-        id: date
-        run: echo "date=$(date +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_OUTPUT
-      
-      - name: Send Analysis to Telegram
-        run: |
-          # Read the analysis file
-          ANALYSIS=$(cat analysis.txt)
-          
-          # Format the message with a header
-          DATE="${{ steps.date.outputs.date }}"
-          MESSAGE="📊 *Bitcoin Trading Analysis - ${DATE}*
-          
-          ${ANALYSIS}"
-          
-          # Encode the message for URL
-          ENCODED_MESSAGE=$(echo -n "${MESSAGE}" | jq -sRr @uri)
-          
-          # Send to Telegram
-          curl -s -X POST \
-            "https://api.telegram.org/bot${{ secrets.TELEGRAM_API_KEY }}/sendMessage" \
-            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d "text=${ENCODED_MESSAGE}" \
-            -d "parse_mode=Markdown"
-        env:
-          DATE: ${{ steps.date.outputs.date }}
+          ./target/release/crypto-forecast telegram

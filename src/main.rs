@@ -2,6 +2,7 @@ mod data_fetcher;
 mod technical_analysis;
 mod prompt_generator;
 mod ai_client;
+mod output;
 
 use dotenv::dotenv;
 use std::env;
@@ -14,7 +15,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     
     // Check for command-line arguments
     let args: Vec<String> = env::args().collect();
-    let only_prompt = args.len() > 1 && args[1] == "--only-prompt";
+    
+    // Parse arguments
+    let mut output_format = "text";
+    let mut only_prompt = false;
+    
+    if args.len() > 1 {
+        if args[1] == "--only-prompt" {
+            only_prompt = true;
+        } else {
+            output_format = &args[1];
+        }
+    }
     
     // Get Anthropic API key from environment variables (only if we need it)
     let api_key = if !only_prompt {
@@ -49,16 +61,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Display only the prompt
         println!("\n=== PROMPT ===\n");
         println!("{}", prompt);
-        println!("\n===============================");
-    } else {
-        // Get analysis from Claude
+        println!("\n===============================");    } else {        // Get analysis from Claude
         let analysis = ai_client::get_analysis_from_claude(&api_key, &prompt).await?;
         
-        // Display the analysis
-        println!("\n=== BITCOIN TRADING RECOMMENDATIONS ===\n");
-        println!("{}", analysis);
-        println!("\n===============================");
-    }
+        // Use the output module to handle the output formatting
+        output::send_output(&analysis, output_format).await?;    }
     
     Ok(())
 }
