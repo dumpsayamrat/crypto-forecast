@@ -49,7 +49,7 @@ pub async fn get_analysis_from_claude(api_key: &str, prompt: &str) -> Result<Str
     
     // Prepare the request body - increase max_tokens to 4096 (Claude's maximum)
     let request_body = AnthropicRequest {
-        model: "claude-3-7-sonnet-20250219".to_string(),
+        model: "claude-opus-4-20250514".to_string(),
         max_tokens: 4096,
         messages: vec![Message {
             role: "user".to_string(),
